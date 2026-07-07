@@ -1057,80 +1057,6 @@ HTML_CONTENT = r"""<!doctype html>
     padding: 20px 0;
   }
 
-  .note-toggle {
-    border: none;
-    background: none;
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .note-toggle svg {
-    width: 15px;
-    height: 15px;
-    stroke: var(--ink-soft);
-    fill: none;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .note-toggle.has-note svg { stroke: var(--sage-deep); }
-  .note-toggle:hover svg { stroke: var(--sage-deep); }
-  .note-toggle:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 2px; }
-
-  /* ---------- 메모 화면 ---------- */
-
-  .note-photo-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin: 4px 0 16px;
-  }
-
-  .note-photo-btn {
-    width: 72px;
-    height: 72px;
-    border-radius: 14px;
-    border: 1.5px dashed var(--sage-pale);
-    background: var(--paper);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    overflow: hidden;
-    padding: 0;
-  }
-
-  .note-photo-btn:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 2px; }
-
-  .note-photo-preview {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .note-photo-icon {
-    width: 24px;
-    height: 24px;
-    stroke: var(--ink-soft);
-    fill: none;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  .note-photo-hint {
-    font-size: 12.5px;
-    color: var(--ink-soft);
-    line-height: 1.5;
-  }
-
   .note-textarea {
     width: 100%;
     resize: vertical;
@@ -1443,33 +1369,6 @@ HTML_CONTENT = r"""<!doctype html>
     </div>
   </section>
 
-  <section class="ticket screen" data-screen="note">
-    <div class="ticket-body">
-      <div class="screen-head">
-        <button class="back-btn" id="noteBackBtn" type="button" aria-label="아카이브로">
-          <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
-        </button>
-        <span class="screen-title" id="noteScreenTitle">메모</span>
-      </div>
-
-      <div class="note-photo-row">
-        <button type="button" class="note-photo-btn" id="notePhotoBtn" aria-label="사진 추가">
-          <img class="note-photo-preview" id="notePhotoPreview" alt="" style="display:none">
-          <svg class="note-photo-icon" id="notePhotoIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg>
-        </button>
-        <input type="file" accept="image/*" id="noteFileInput" hidden>
-        <span class="note-photo-hint" id="notePhotoHint">다녀온 순간을 사진으로 남겨보세요</span>
-      </div>
-
-      <textarea class="note-textarea" id="noteTextarea" placeholder="어땠는지 짧게 남겨보세요" rows="4"></textarea>
-
-      <div class="note-actions">
-        <button type="button" class="note-clear-btn" id="noteClearBtn">지우기</button>
-        <button type="button" class="note-save-btn" id="noteSaveBtn">저장</button>
-      </div>
-    </div>
-  </section>
-
   <footer class="credit">오디가지? · 서울 혼자놀기 장소 추천</footer>
 </div>
 
@@ -1705,8 +1604,6 @@ HTML_CONTENT = r"""<!doctype html>
       else if (i === quizState.step) dot.classList.add("is-active");
       dotsWrap.appendChild(dot);
     });
-
-    document.getElementById("quizBackBtn").style.visibility = quizState.step === 0 ? "hidden" : "visible";
   }
 
   function handleQuizAnswer(key, value) {
@@ -1867,23 +1764,7 @@ HTML_CONTENT = r"""<!doctype html>
     return CATEGORY_ICONS[category] || DEFAULT_CATEGORY_ICON;
   }
 
-  const STORAGE_KEYS = { visited: "honplay_visited", custom: "honplay_custom_places", notes: "honplay_notes" };
-
-  function loadNotes() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.notes)) || {}; }
-    catch (err) { return {}; }
-  }
-
-  function getNote(id) {
-    return loadNotes()[id] || null;
-  }
-
-  function setNote(id, data) {
-    const notes = loadNotes();
-    if (!data.text && !data.photo) delete notes[id];
-    else notes[id] = { text: data.text || "", photo: data.photo || null };
-    localStorage.setItem(STORAGE_KEYS.notes, JSON.stringify(notes));
-  }
+  const STORAGE_KEYS = { visited: "honplay_visited", custom: "honplay_custom_places" };
 
   function loadVisited() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.visited)) || []; }
@@ -1931,7 +1812,6 @@ HTML_CONTENT = r"""<!doctype html>
     const visited = new Set(loadVisited());
     visited.delete(id);
     saveVisited([...visited]);
-    setNote(id, {});
     renderArchive();
   }
 
@@ -2012,16 +1892,6 @@ HTML_CONTENT = r"""<!doctype html>
       label.appendChild(icon);
       label.appendChild(text);
       li.appendChild(label);
-
-      const note = getNote(item.id);
-      const hasNote = !!(note && (note.text || note.photo));
-      const noteBtn = document.createElement("button");
-      noteBtn.type = "button";
-      noteBtn.className = "note-toggle" + (hasNote ? " has-note" : "");
-      noteBtn.setAttribute("aria-label", "메모·사진");
-      noteBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4 12-12 3 3-12 12-4 1Z"/><path d="M14 5l3 3"/></svg>';
-      noteBtn.addEventListener("click", () => openNoteEditor(item));
-      li.appendChild(noteBtn);
 
       if (item.custom) {
         const removeBtn = document.createElement("button");
@@ -2118,71 +1988,6 @@ HTML_CONTENT = r"""<!doctype html>
     addCustomPlace(name, selectedAddPlaceCategory, desc);
     switchScreen("archive");
   });
-
-  /* =========================================================
-     메모 · 사진 화면
-     ========================================================= */
-
-  let currentNoteItem = null;
-  let pendingNotePhoto = null;
-
-  function refreshNotePhotoPreview() {
-    const preview = document.getElementById("notePhotoPreview");
-    const icon = document.getElementById("notePhotoIcon");
-    const hint = document.getElementById("notePhotoHint");
-    if (pendingNotePhoto) {
-      preview.src = pendingNotePhoto;
-      preview.style.display = "block";
-      icon.style.display = "none";
-      hint.textContent = "사진을 눌러 바꿀 수 있어요";
-    } else {
-      preview.style.display = "none";
-      icon.style.display = "block";
-      hint.textContent = "다녀온 순간을 사진으로 남겨보세요";
-    }
-  }
-
-  function openNoteEditor(item) {
-    currentNoteItem = item;
-    const note = getNote(item.id);
-    pendingNotePhoto = note ? note.photo || null : null;
-    document.getElementById("noteScreenTitle").textContent = item.name;
-    document.getElementById("noteTextarea").value = note && note.text ? note.text : "";
-    refreshNotePhotoPreview();
-    switchScreen("note");
-  }
-
-  document.getElementById("notePhotoBtn").addEventListener("click", () => {
-    document.getElementById("noteFileInput").click();
-  });
-
-  document.getElementById("noteFileInput").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      pendingNotePhoto = reader.result;
-      refreshNotePhotoPreview();
-    };
-    reader.readAsDataURL(file);
-  });
-
-  document.getElementById("noteClearBtn").addEventListener("click", () => {
-    if (!currentNoteItem) return;
-    setNote(currentNoteItem.id, {});
-    renderArchive();
-    switchScreen("archive");
-  });
-
-  document.getElementById("noteSaveBtn").addEventListener("click", () => {
-    if (!currentNoteItem) return;
-    const text = document.getElementById("noteTextarea").value.trim();
-    setNote(currentNoteItem.id, { text, photo: pendingNotePhoto });
-    renderArchive();
-    switchScreen("archive");
-  });
-
-  document.getElementById("noteBackBtn").addEventListener("click", () => switchScreen("archive"));
 
   /* =========================================================
      시작
