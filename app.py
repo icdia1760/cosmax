@@ -1189,6 +1189,61 @@ HTML_CONTENT = r"""<!doctype html>
     .note-save-btn { transition: none; }
   }
 
+  .addplace-name-input {
+    width: 100%;
+    border: 1.5px solid var(--sage-pale);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--paper);
+    margin-bottom: 16px;
+  }
+
+  .addplace-name-input::placeholder { color: var(--ink-soft); }
+  .addplace-name-input:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 1px; }
+
+  .addplace-field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+
+  .icon-picker {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .icon-option {
+    aspect-ratio: 1;
+    border: 1.5px solid var(--sage-pale);
+    border-radius: 12px;
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .icon-option svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--sage-deep);
+    fill: none;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .icon-option.is-selected { border-color: var(--sage-deep); background: var(--sage-pale); }
+  .icon-option:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 2px; }
+
   footer.credit {
     margin-top: 20px;
     font-size: 11px;
@@ -1361,6 +1416,30 @@ HTML_CONTENT = r"""<!doctype html>
       </div>
 
       <ul class="archive-list" id="archiveList"></ul>
+    </div>
+  </section>
+
+  <section class="ticket screen" data-screen="addplace">
+    <div class="ticket-body">
+      <div class="screen-head">
+        <button class="back-btn" id="addPlaceBackBtn" type="button" aria-label="아카이브로">
+          <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <span class="screen-title">새로운 장소</span>
+      </div>
+
+      <input type="text" class="addplace-name-input" id="addPlaceNameInput" placeholder="장소 이름" maxlength="40">
+
+      <span class="addplace-field-label">아이콘 선택</span>
+      <div class="icon-picker" id="addPlaceIconPicker"></div>
+
+      <span class="addplace-field-label">설명</span>
+      <textarea class="note-textarea" id="addPlaceDescInput" placeholder="어떤 곳인지 짧게 설명해보세요" rows="3" maxlength="80"></textarea>
+
+      <div class="note-actions">
+        <button type="button" class="note-clear-btn" id="addPlaceCancelBtn">취소</button>
+        <button type="button" class="note-save-btn" id="addPlaceSaveBtn">추가하기</button>
+      </div>
     </div>
   </section>
 
@@ -1832,11 +1911,17 @@ HTML_CONTENT = r"""<!doctype html>
     renderArchive();
   }
 
-  function addCustomPlace(rawName) {
+  function addCustomPlace(rawName, category, desc) {
     const name = rawName.trim();
     if (!name) return;
     const custom = loadCustomPlaces();
-    custom.push({ id: `custom-${Date.now()}`, name, area: "", category: "내가 추가한 곳" });
+    custom.push({
+      id: `custom-${Date.now()}`,
+      name,
+      area: "",
+      category: category || "내가 추가한 곳",
+      desc: (desc || "").trim()
+    });
     saveCustomPlaces(custom);
     renderArchive();
   }
@@ -1861,8 +1946,8 @@ HTML_CONTENT = r"""<!doctype html>
   function renderArchive() {
     const visited = new Set(loadVisited());
     const combined = [
-      ...PLACES.map((p) => ({ id: p.name, name: p.name, area: p.area, category: p.category, custom: false })),
-      ...loadCustomPlaces().map((p) => ({ id: p.id, name: p.name, area: p.area, category: p.category, custom: true }))
+      ...PLACES.map((p) => ({ id: p.name, name: p.name, area: p.area, category: p.category, desc: "", custom: false })),
+      ...loadCustomPlaces().map((p) => ({ id: p.id, name: p.name, area: p.area, category: p.category, desc: p.desc || "", custom: true }))
     ];
 
     document.getElementById("archiveCount").textContent = `${visited.size}/${combined.length}`;
@@ -1915,7 +2000,9 @@ HTML_CONTENT = r"""<!doctype html>
 
       const metaEl = document.createElement("span");
       metaEl.className = "archive-meta";
-      metaEl.textContent = item.area ? `${item.category} · ${item.area}` : item.category;
+      metaEl.textContent = item.desc
+        ? item.desc
+        : (item.area ? `${item.category} · ${item.area}` : item.category);
 
       text.appendChild(nameEl);
       text.appendChild(metaEl);
@@ -1972,9 +2059,8 @@ HTML_CONTENT = r"""<!doctype html>
 
   document.getElementById("archiveAddBtn").addEventListener("click", () => {
     const input = document.getElementById("archiveInput");
-    addCustomPlace(input.value);
+    openAddPlace(input.value);
     input.value = "";
-    input.focus();
   });
 
   document.getElementById("archiveInput").addEventListener("keydown", (e) => {
@@ -1982,6 +2068,55 @@ HTML_CONTENT = r"""<!doctype html>
       e.preventDefault();
       document.getElementById("archiveAddBtn").click();
     }
+  });
+
+  /* =========================================================
+     장소 추가 화면 (아이콘 · 설명)
+     ========================================================= */
+
+  const ADDPLACE_CATEGORIES = Object.keys(CATEGORY_ICONS);
+  let selectedAddPlaceCategory = null;
+
+  function renderAddPlaceIconPicker() {
+    const wrap = document.getElementById("addPlaceIconPicker");
+    wrap.innerHTML = "";
+    ADDPLACE_CATEGORIES.forEach((category) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "icon-option" + (selectedAddPlaceCategory === category ? " is-selected" : "");
+      btn.setAttribute("aria-label", category);
+      btn.title = category;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${categoryIcon(category)}</svg>`;
+      btn.addEventListener("click", () => {
+        selectedAddPlaceCategory = category;
+        renderAddPlaceIconPicker();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function openAddPlace(prefillName) {
+    selectedAddPlaceCategory = null;
+    document.getElementById("addPlaceNameInput").value = prefillName || "";
+    document.getElementById("addPlaceDescInput").value = "";
+    renderAddPlaceIconPicker();
+    switchScreen("addplace");
+    document.getElementById("addPlaceNameInput").focus();
+  }
+
+  document.getElementById("addPlaceBackBtn").addEventListener("click", () => switchScreen("archive"));
+  document.getElementById("addPlaceCancelBtn").addEventListener("click", () => switchScreen("archive"));
+
+  document.getElementById("addPlaceSaveBtn").addEventListener("click", () => {
+    const nameInput = document.getElementById("addPlaceNameInput");
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.focus();
+      return;
+    }
+    const desc = document.getElementById("addPlaceDescInput").value;
+    addCustomPlace(name, selectedAddPlaceCategory, desc);
+    switchScreen("archive");
   });
 
   /* =========================================================
