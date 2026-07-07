@@ -1057,6 +1057,85 @@ HTML_CONTENT = r"""<!doctype html>
     padding: 20px 0;
   }
 
+  .note-toggle {
+    border: none;
+    background: none;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .note-toggle svg {
+    width: 15px;
+    height: 15px;
+    stroke: var(--ink-soft);
+    fill: none;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .note-toggle.has-note svg { stroke: var(--sage-deep); }
+  .note-toggle:hover svg { stroke: var(--sage-deep); }
+  .note-toggle:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 2px; }
+
+  .archive-note-panel {
+    border: 1.5px dashed var(--sage-pale);
+    border-radius: 14px;
+    padding: 14px;
+    background: var(--cream);
+  }
+
+  .note-photo-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 12px;
+  }
+
+  .note-photo-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    border: 1.5px dashed var(--sage-pale);
+    background: var(--paper);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .note-photo-btn:focus-visible { outline: 2px solid var(--sage-deep); outline-offset: 2px; }
+
+  .note-photo-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .note-photo-icon {
+    width: 20px;
+    height: 20px;
+    stroke: var(--ink-soft);
+    fill: none;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .note-photo-hint {
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+
   .note-textarea {
     width: 100%;
     resize: vertical;
@@ -1764,7 +1843,23 @@ HTML_CONTENT = r"""<!doctype html>
     return CATEGORY_ICONS[category] || DEFAULT_CATEGORY_ICON;
   }
 
-  const STORAGE_KEYS = { visited: "honplay_visited", custom: "honplay_custom_places" };
+  const STORAGE_KEYS = { visited: "honplay_visited", custom: "honplay_custom_places", notes: "honplay_notes" };
+
+  function loadNotes() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.notes)) || {}; }
+    catch (err) { return {}; }
+  }
+
+  function getNote(id) {
+    return loadNotes()[id] || null;
+  }
+
+  function setNote(id, data) {
+    const notes = loadNotes();
+    if (!data.text && !data.photo) delete notes[id];
+    else notes[id] = { text: data.text || "", photo: data.photo || null };
+    localStorage.setItem(STORAGE_KEYS.notes, JSON.stringify(notes));
+  }
 
   function loadVisited() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.visited)) || []; }
@@ -1812,10 +1907,89 @@ HTML_CONTENT = r"""<!doctype html>
     const visited = new Set(loadVisited());
     visited.delete(id);
     saveVisited([...visited]);
+    setNote(id, {});
+    if (openNoteId === id) openNoteId = null;
     renderArchive();
   }
 
   let archiveFilter = "all"; // "all" | "been" | "togo"
+  let openNoteId = null;
+
+  function toggleNotePanel(id) {
+    openNoteId = openNoteId === id ? null : id;
+    renderArchive();
+  }
+
+  function buildNotePanel(item) {
+    const note = getNote(item.id);
+    let pendingPhoto = note ? note.photo || null : null;
+
+    const panel = document.createElement("li");
+    panel.className = "archive-note-panel";
+    panel.innerHTML = `
+      <div class="note-photo-row">
+        <button type="button" class="note-photo-btn" aria-label="사진 추가">
+          <img class="note-photo-preview" alt="">
+          <svg class="note-photo-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        </button>
+        <input type="file" accept="image/*" class="note-file-input" hidden>
+        <span class="note-photo-hint"></span>
+      </div>
+      <textarea class="note-textarea" placeholder="어땠는지 짧게 남겨보세요" rows="3"></textarea>
+      <div class="note-actions">
+        <button type="button" class="note-clear-btn">지우기</button>
+        <button type="button" class="note-save-btn">저장</button>
+      </div>
+    `;
+
+    const photoBtn = panel.querySelector(".note-photo-btn");
+    const fileInput = panel.querySelector(".note-file-input");
+    const preview = panel.querySelector(".note-photo-preview");
+    const icon = panel.querySelector(".note-photo-icon");
+    const hint = panel.querySelector(".note-photo-hint");
+    const textarea = panel.querySelector(".note-textarea");
+
+    function refreshPhotoPreview() {
+      if (pendingPhoto) {
+        preview.src = pendingPhoto;
+        preview.style.display = "block";
+        icon.style.display = "none";
+        hint.textContent = "사진을 눌러 바꿀 수 있어요";
+      } else {
+        preview.style.display = "none";
+        icon.style.display = "block";
+        hint.textContent = "다녀온 순간을 사진으로 남겨보세요";
+      }
+    }
+    refreshPhotoPreview();
+    textarea.value = note && note.text ? note.text : "";
+
+    photoBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        pendingPhoto = reader.result;
+        refreshPhotoPreview();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    panel.querySelector(".note-clear-btn").addEventListener("click", () => {
+      setNote(item.id, {});
+      openNoteId = null;
+      renderArchive();
+    });
+
+    panel.querySelector(".note-save-btn").addEventListener("click", () => {
+      setNote(item.id, { text: textarea.value.trim(), photo: pendingPhoto });
+      openNoteId = null;
+      renderArchive();
+    });
+
+    return panel;
+  }
 
   function archiveEmptyMessage() {
     if (archiveFilter === "been") return "아직 다녀온 곳이 없어요.";
@@ -1893,6 +2067,16 @@ HTML_CONTENT = r"""<!doctype html>
       label.appendChild(text);
       li.appendChild(label);
 
+      const note = getNote(item.id);
+      const hasNote = !!(note && (note.text || note.photo));
+      const noteBtn = document.createElement("button");
+      noteBtn.type = "button";
+      noteBtn.className = "note-toggle" + (hasNote ? " has-note" : "");
+      noteBtn.setAttribute("aria-label", "메모·사진");
+      noteBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4 12-12 3 3-12 12-4 1Z"/><path d="M14 5l3 3"/></svg>';
+      noteBtn.addEventListener("click", () => toggleNotePanel(item.id));
+      li.appendChild(noteBtn);
+
       if (item.custom) {
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
@@ -1904,6 +2088,10 @@ HTML_CONTENT = r"""<!doctype html>
       }
 
       list.appendChild(li);
+
+      if (openNoteId === item.id) {
+        list.appendChild(buildNotePanel(item));
+      }
     });
   }
 
